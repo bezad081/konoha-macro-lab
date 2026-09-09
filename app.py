@@ -8,6 +8,15 @@ from adas import ADASModel, create_adas_figure
 from open_economy import MundellFlemingModel, create_mundell_fleming_figure
 from solow import SolowModel, create_solow_figure
 
+from math_explainer import (
+    show_goods_market_math,
+    show_money_market_math,
+    show_islm_math,
+    show_adas_math,
+    show_open_economy_math,
+    show_solow_math
+)
+
 st.set_page_config(
     page_title="اتاق عملیات اقتصاد کلان کونوها",
     page_icon="🍃",
@@ -84,7 +93,7 @@ st.sidebar.markdown("---")
 # ==========================================
 # فصل ۱: بازار کالا
 # ==========================================
-if "۱." in topic:
+if "بازار کالا" in topic:
     st.header("📦 بازار کالا و تقاطع کینزی")
     c0 = st.sidebar.slider("مصرف خودگردان (c₀):", 20.0, 150.0, 60.0, step=5.0)
     mpc = st.sidebar.slider("میل نهایی به مصرف (mpc):", 0.4, 0.95, 0.75, step=0.05)
@@ -99,12 +108,17 @@ if "۱." in topic:
     c1.metric("ضریب فزاینده کینزی (α)", f"{model.multiplier:.2f}")
     c2.metric("تولید تعادلی بازار کالا (Y)", f"{Y_eq:.1f} ریو")
     c3.metric("مخارج خودگردان کل (A)", f"{model.autonomous_spending(r):.1f}")
-    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
+
+    tab1, tab2 = st.tabs(["📊 نمودارهای تحلیلی", "📐 محاسبات و حل تشریحی ریاضی"])
+    with tab1:
+        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
+    with tab2:
+        show_goods_market_math(model, r, Y_eq, c0, mpc, t, g)
 
 # ==========================================
 # فصل ۲: بازار پول
 # ==========================================
-elif "۲." in topic:
+elif "بازار پول" in topic:
     st.header("🏦 بازار پول و ترجیح نقدینگی")
     m = st.sidebar.slider("عرضه اسمی پول (M):", 200.0, 800.0, 400.0, step=25.0)
     p = st.sidebar.slider("شاخص سطح قیمت‌ها (P):", 0.5, 2.0, 1.0, step=0.1)
@@ -118,20 +132,21 @@ elif "۲." in topic:
     c1, c2 = st.columns(2)
     c1.metric("مانده واقعی پول (M/P)", f"{model.real_money_supply:.1f}")
     c2.metric("نرخ بهره تعادلی (r)", f"{r_eq * 100:.2f}%")
-    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
+
+    tab1, tab2 = st.tabs(["📊 نمودارهای تعادل بازار پول و LM", "📐 محاسبات و حل تشریحی ریاضی"])
+    with tab1:
+        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
+    with tab2:
+        show_money_market_math(model, y_curr, m, p, k, h, r_eq)
 
 # ==========================================
-# فصل ۳: تعادل هم‌زمان IS-LM و حالات خاص
+# فصل ۳: تعادل IS-LM
 # ==========================================
-# ==========================================
-# فصل ۳: تعادل هم‌زمان IS-LM و حالات خاص مکاتب
-# ==========================================
-elif "۳." in topic:
+elif "حالات خاص" in topic or "IS-LM" in topic:
     st.header("⚖️ تعادل عمومی بازار کالا و پول (IS-LM)")
 
-    st.sidebar.subheader("🎯 بسته‌های سیاستی و مأموریت‌های هوکاگه:")
+    st.sidebar.subheader("🎯 بسته‌های سیاستی هوکاگه:")
     col_s1, col_s2 = st.sidebar.columns(2)
-
     if "islm_g" not in st.session_state:
         st.session_state.islm_g = 120.0
         st.session_state.islm_m = 400.0
@@ -148,12 +163,7 @@ elif "۳." in topic:
         ["تعادل استاندارد نئوکینزی", "تله نقدینگی کینزی (Liquidity Trap)", "دیدگاه کلاسیک (تئوری مقداری پول)"]
     )
 
-    if special_case == "تله نقدینگی کینزی (Liquidity Trap)":
-        regime_mode = "liquidity_trap"
-    elif special_case == "دیدگاه کلاسیک (تئوری مقداری پول)":
-        regime_mode = "classical"
-    else:
-        regime_mode = "standard"
+    regime_mode = "liquidity_trap" if "تله نقدینگی" in special_case else ("classical" if "کلاسیک" in special_case else "standard")
 
     st.sidebar.subheader("تنظیم متغیرهای سیاستی:")
     g_val = st.sidebar.slider("مخارج بازسازی هوکاگه (G):", 40.0, 260.0, st.session_state.islm_g, step=10.0)
@@ -164,66 +174,36 @@ elif "۳." in topic:
     curr_eng = ISLMEngine(G=g_val, t=t_val, M=m_val, regime=regime_mode)
     fig, eq0, eq1 = create_islm_figure(base_eng, curr_eng)
 
-    tab_chart, tab_data, tab_pedagogy = st.tabs(["📊 دیاگرام IS-LM", "📋 کارنامه شاخص‌ها", "🎓 راهنمای تدریس و حالات خاص"])
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("تولید تعادلی (Y)", f"{eq1['Y']:.1f}", delta=f"{eq1['Y'] - eq0['Y']:+.1f}")
+    c2.metric("نرخ بهره تعادلی (r)", f"{eq1['r']*100:.2f}%", delta=f"{(eq1['r'] - eq0['r'])*100:+.2f}%")
+    c3.metric("سرمایه‌گذاری خصوصی (I)", f"{eq1['I']:.1f}", delta=f"{eq1['I'] - eq0['I']:+.1f}")
+    c4.metric("تراز بودجه دولت (T - G)", f"{-eq1['Deficit']:+.1f}")
+
+    tab_chart, tab_math, tab_pedagogy = st.tabs(["📊 دیاگرام IS-LM", "📐 محاسبات و حل تشریحی ریاضی", "🎓 راهنمای تدریس و حالات خاص"])
 
     with tab_chart:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("تولید تعادلی (Y)", f"{eq1['Y']:.1f}", delta=f"{eq1['Y'] - eq0['Y']:+.1f}")
-        c2.metric("نرخ بهره تعادلی (r)", f"{eq1['r']*100:.2f}%", delta=f"{(eq1['r'] - eq0['r'])*100:+.2f}%")
-        c3.metric("سرمایه‌گذاری خصوصی (I)", f"{eq1['I']:.1f}", delta=f"{eq1['I'] - eq0['I']:+.1f}")
-        c4.metric("تراز بودجه دولت (T - G)", f"{-eq1['Deficit']:+.1f}")
         st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
-
-    with tab_data:
-        table_islm = f"""
-        <table class="custom-table">
-            <thead>
-                <tr><th>متغیر</th><th>مقدار تعادلی</th></tr>
-            </thead>
-            <tbody>
-                <tr><td>مصرف کل اهالی (C)</td><td>{eq1['C']:.1f}</td></tr>
-                <tr><td>سرمایه‌گذاری قبیله‌ها (I)</td><td>{eq1['I']:.1f}</td></tr>
-                <tr><td>درآمدهای مالیاتی (T)</td><td>{eq1['T']:.1f}</td></tr>
-                <tr><td>کسری بودجه هوکاگه</td><td>{eq1['Deficit']:.1f}</td></tr>
-            </tbody>
-        </table>
-        """
-        st.markdown(table_islm, unsafe_allow_html=True)
-
+    with tab_math:
+        show_islm_math(curr_eng, base_eng, eq0, eq1, regime_mode)
     with tab_pedagogy:
         if regime_mode == "liquidity_trap":
-            st.success("💡 **تله نقدینگی (دیدگاه کینز محض):** در این حالت نرخ بهره به حداقل ممکن رسیده و منحنی LM کاملاً افقی است. سیاست پولی هیچ اثری بر نرخ بهره و تولید ندارد، اما سیاست مالی هوکاگه با بالاترین قدرت اثر فزاینده را ایجاد می‌کند (برون‌رانی صفر درصد).")
+            st.info("💡 **در تله نقدینگی:** حساسیت تقاضای پول به بهره نامحدود است؛ تغییر سیاست مالی بدون هیچ‌گونه برون‌رانی تولید را با حداکثر توان فزاینده منتقل می‌کند.")
         elif regime_mode == "classical":
-            st.warning("💡 **دیدگاه کلاسیک (تئوری مقداری پول):** تقاضای پول هیچ حساسیتی به نرخ بهره ندارد ($h=0$)؛ منحنی LM کاملاً عمودی است. سیاست مالی مخارج دولت فقط نرخ بهره را افزایش می‌دهد و سرمایه‌گذاری را دقیقاً به همان اندازه بیرون می‌راند (برون‌رانی ۱۰۰٪). فقط سیاست پولی تولید را جابه‌جا می‌کند.")
+            st.warning("💡 **در دیدگاه کلاسیک:** تقاضای پول مستقل از نرخ بهره است؛ افزایش مخارج دولت دقیقاً به همان میزان سرمایه‌گذاری بخش خصوصی را خارج می‌کند.")
         else:
-            crowding = eq1["I"] - eq0["I"]
+            crowding = eq1['I'] - eq0['I']
             if g_val > base_eng.G and crowding < 0:
-                st.info(f"💡 **تحلیل برون‌رانی استاندارد:** افزایش مخارج دولت نرخ بهره را افزایش داده و سرمایه‌گذاری بخش خصوصی را `{abs(crowding):.1f}` واحد کاهش داده است.")
+                st.info(f"💡 **تحلیل برون‌رانی:** افزایش مخارج دولت نرخ بهره را افزایش داده و سرمایه‌گذاری بخش خصوصی را `{abs(crowding):.1f}` واحد تعدیل کرده است.")
 
 # ==========================================
-# فصل ۴: مدل AD-AS و فیلیپس
+# فصل ۴: مدل AD-AS
 # ==========================================
-elif "۴." in topic:
+elif "AD-AS" in topic or "فیلیپس" in topic:
     st.header("💥 تعادل کل اقتصاد (AD-AS) و منحنی فیلیپس")
-
-    st.sidebar.subheader("🎯 سناریوهای بحران:")
-    col_b1, col_b2 = st.sidebar.columns(2)
-    if "adas_shock" not in st.session_state:
-        st.session_state.adas_shock = 0.0
-        st.session_state.adas_m = 400.0
-        st.session_state.adas_a = 320.0
-
-    if col_b1.button("🚨 حمله پین (شوک عرضه)"):
-        st.session_state.adas_shock = 0.35
-        st.session_state.adas_m = 400.0
-    if col_b2.button("🔄 تعادل پایه"):
-        st.session_state.adas_shock = 0.0
-        st.session_state.adas_m = 400.0
-        st.session_state.adas_a = 320.0
-
-    a_val = st.sidebar.slider("مخارج خودگردان کل (A):", 200.0, 450.0, st.session_state.adas_a, step=10.0)
-    m_val = st.sidebar.slider("عرضه اسمی پول (M):", 200.0, 700.0, st.session_state.adas_m, step=25.0)
-    shock_val = st.sidebar.slider("شوک منفی عرضه / بحران چاکرا (z):", -0.3, 0.6, st.session_state.adas_shock, step=0.05)
+    a_val = st.sidebar.slider("مخارج خودگردان کل (A):", 200.0, 450.0, 320.0, step=10.0)
+    m_val = st.sidebar.slider("عرضه اسمی پول (M):", 200.0, 700.0, 400.0, step=25.0)
+    shock_val = st.sidebar.slider("شوک منفی عرضه / بحران چاکرا (z):", -0.3, 0.6, 0.0, step=0.05)
     pe_val = st.sidebar.slider("انتظارات قیمتی (Pᵉ):", 0.7, 1.5, 1.0, step=0.05)
 
     base_model = ADASModel()
@@ -236,24 +216,22 @@ elif "۴." in topic:
     c3.metric("شکاف تولید", f"{eq1['Output_Gap']:+.2f}%")
     c4.metric("نرخ تورم", f"{eq1['Inflation']:+.1f}%")
 
-    if shock_val > 0 and eq1["Y"] < base_model.Y_potential:
-        st.error("⚠️ **تشخیص رکود تورمی (Stagflation):** هم‌زمانی کاهش تولید و جهش شاخص قیمت‌ها.")
-    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
+    tab1, tab2 = st.tabs(["📊 دیاگرام‌های AD-AS و فیلیپس", "📐 محاسبات و حل تشریحی ریاضی"])
+    with tab1:
+        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
+    with tab2:
+        show_adas_math(curr_model, a_val, m_val, pe_val, shock_val, eq1)
 
 # ==========================================
-# فصل ۵: ماندل-فلمینگ (اقتصاد باز)
+# فصل ۵: اقتصاد باز ماندل-فلمینگ
 # ==========================================
-# ==========================================
-# فصل ۵: ماندل-فلمینگ (اقتصاد باز)
-# ==========================================
-elif "اقتصاد باز" in topic:
+elif "اقتصاد باز" in topic or "ماندل" in topic:
     st.header("🌐 اقتصاد باز: تعامل کونوها با دهکده سنگ و خاک (Mundell-Fleming)")
 
     st.sidebar.subheader("💱 نظام ارزی دهکده کونوها:")
     exchange_system = st.sidebar.radio(
         "انتخاب رژیم ارزی:",
-        ["نظام نرخ ارز شناور (Floating)", "نظام نرخ ارز ثابت (Fixed)"],
-        key="exchange_regime_radio"
+        ["نظام نرخ ارز شناور (Floating)", "نظام نرخ ارز ثابت (Fixed)"]
     )
     regime_code = "floating" if "شناور" in exchange_system else "fixed"
 
@@ -262,10 +240,7 @@ elif "اقتصاد باز" in topic:
     m_val = st.sidebar.slider("عرضه پول هدف اولیه (M):", 200.0, 700.0, 400.0, step=25.0)
     rf_val = st.sidebar.slider("نرخ بهره بین‌المللی دهکده سنگ (r*):", 0.02, 0.10, 0.05, step=0.01, format="%.2f")
 
-    if regime_code == "fixed":
-        fixed_e = st.sidebar.slider("نرخ ارز تثبیت‌شده (e):", 0.5, 2.0, 1.0, step=0.1)
-    else:
-        fixed_e = 1.0
+    fixed_e = st.sidebar.slider("نرخ ارز تثبیت‌شده (e):", 0.5, 2.0, 1.0, step=0.1) if regime_code == "fixed" else 1.0
 
     base_mf = MundellFlemingModel(regime=regime_code)
     curr_mf = MundellFlemingModel(G=g_val, M=m_val, exchange_rate=fixed_e, r_foreign=rf_val, regime=regime_code)
@@ -273,27 +248,25 @@ elif "اقتصاد باز" in topic:
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("تولید ناخالص کونوها (Y)", f"{eq1['Y']:.1f}", delta=f"{eq1['Y'] - eq0['Y']:+.1f}")
-    c2.metric("نرخ بهره تعادلی (r)", f"{eq1['r']*100:.2f}%", delta=f"{(eq1['r'] - eq0['r'])*100:+.2f}%")
-    
+    c2.metric("نرخ بهره تعادلی (r)", f"{eq1['r']*100:.2f}%")
     if regime_code == "floating":
         c3.metric("نرخ ارز تعادلی شناور (e)", f"{eq1['e']:.2f}", delta=f"{eq1['e'] - eq0['e']:+.2f}")
-        c4.metric("عرضه پول (ثابت)", f"{eq1['M']:.0f}")
+        c4.metric("عرضه پول (برون‌زا)", f"{eq1['M']:.0f}")
     else:
         c3.metric("نرخ ارز تثبیت‌شده (e)", f"{eq1['e']:.2f}")
         c4.metric("عرضه پول تعدیل‌شده بانک مرکزی", f"{eq1['M']:.0f}", delta=f"{eq1['M'] - eq0['M']:+.0f}")
 
-    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
+    tab1, tab2 = st.tabs(["📊 دیاگرام تعادل هم‌زمان IS-LM-BP", "📐 محاسبات و حل تشریحی ریاضی"])
+    with tab1:
+        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
+    with tab2:
+        show_open_economy_math(curr_mf, rf_val, regime_code, eq1)
 
 # ==========================================
 # فصل ۶: مدل رشد سولو
 # ==========================================
-elif "۶." in topic:
+elif "سولو" in topic or "رشد بلندمدت" in topic:
     st.header("📈 مدل رشد نئوکلاسیک سولو و انباشت بلندمدت سرمایه")
-    st.markdown("""
-    در این مدل، وضعیت پایدار (Steady State)، انباشت سرمایه سرانه، و سطح پس‌انداز منطبق بر **قاعده طلایی (Golden Rule)** برای بیشینه‌سازی رفاه اهالی کونوها بررسی می‌شود.
-    """)
-
-    st.sidebar.subheader("پارامترهای بلندمدت اقتصاد:")
     s_val = st.sidebar.slider("نرخ پس‌انداز دهکده (s):", 0.05, 0.60, 0.25, step=0.05)
     tech_val = st.sidebar.slider("سطح بهره‌وری و فناوری کونوها (A):", 0.6, 2.5, 1.0, step=0.1)
     alpha_val = st.sidebar.slider("کشش تولید نسبت به سرمایه (α):", 0.20, 0.50, 0.35, step=0.05)
@@ -304,36 +277,14 @@ elif "۶." in topic:
     curr_solow = SolowModel(s=s_val, A=tech_val, alpha=alpha_val, delta=delta_val, n=pop_val)
     fig, ss0, ss1 = create_solow_figure(base_solow, curr_solow)
 
-    tab_solow_chart, tab_solow_metrics, tab_solow_pedagogy = st.tabs(["📊 نمودار وضعیت پایدار", "📋 کارنامه شاخص‌های سرانه", "🎓 تحلیل قاعده طلایی"])
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("سرمایه پایدار سرانه (k*)", f"{ss1['k_star']:.2f}", delta=f"{ss1['k_star'] - ss0['k_star']:+.2f}")
+    c2.metric("تولید سرانه (y*)", f"{ss1['y_star']:.2f}", delta=f"{ss1['y_star'] - ss0['y_star']:+.2f}")
+    c3.metric("مصرف سرانه (c*)", f"{ss1['c_star']:.2f}", delta=f"{ss1['c_star'] - ss0['c_star']:+.2f}")
+    c4.metric("نرخ پس‌انداز قاعده طلایی", f"{ss1['s_gold']*100:.0f}%")
 
-    with tab_solow_chart:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("سرمایه پایدار سرانه (k*)", f"{ss1['k_star']:.2f}", delta=f"{ss1['k_star'] - ss0['k_star']:+.2f}")
-        c2.metric("تولید سرانه (y*)", f"{ss1['y_star']:.2f}", delta=f"{ss1['y_star'] - ss0['y_star']:+.2f}")
-        c3.metric("مصرف سرانه (c*)", f"{ss1['c_star']:.2f}", delta=f"{ss1['c_star'] - ss0['c_star']:+.2f}")
-        c4.metric("نرخ پس‌انداز قاعده طلایی", f"{ss1['s_gold']*100:.0f}%")
+    tab1, tab2 = st.tabs(["📊 نمودار وضعیت پایدار سولو", "📐 محاسبات و حل تشریحی ریاضی"])
+    with tab1:
         st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
-
-    with tab_solow_metrics:
-        table_solow = f"""
-        <table class="custom-table">
-            <thead>
-                <tr><th>شاخص سرانه در وضعیت پایدار</th><th>مقدار جاری</th><th>مقدار در قاعده طلایی</th></tr>
-            </thead>
-            <tbody>
-                <tr><td>موجودی سرمایه سرانه (k)</td><td>{ss1['k_star']:.2f}</td><td>{ss1['k_gold']:.2f}</td></tr>
-                <tr><td>تولید ناخالص سرانه (y)</td><td>{ss1['y_star']:.2f}</td><td>{curr_solow.production_per_effective_worker(ss1['k_gold']):.2f}</td></tr>
-                <tr><td>مصرف پایدار سرانه (c)</td><td>{ss1['c_star']:.2f}</td><td>{ss1['c_gold']:.2f}</td></tr>
-                <tr><td>نرخ پس‌انداز (s)</td><td>{curr_solow.s*100:.1f}%</td><td>{ss1['s_gold']*100:.1f}%</td></tr>
-            </tbody>
-        </table>
-        """
-        st.markdown(table_solow, unsafe_allow_html=True)
-
-    with tab_solow_pedagogy:
-        if abs(curr_solow.s - ss1["s_gold"]) < 0.02:
-            st.success("🏆 **انطباق بر قاعده طلایی:** نرخ پس‌انداز انتخابی هوکاگه برابر با سهم سرمایه ($s = \\alpha$) است و مصرف پایدار نسل حاضر و آینده حداکثر شده است.")
-        elif curr_solow.s > ss1["s_gold"]:
-            st.warning("⚠️ **پویایی ناکارا (Dynamic Inefficiency):** نرخ پس‌انداز دهکده بیش از حد بالاست؛ با کاهش پس‌انداز می‌توان بدون آسیب به آینده، مصرف امروز اهالی را افزایش داد.")
-        else:
-            st.info("💡 **انباشت ناکافی سرمایه:** نرخ پس‌انداز کمتر از قاعده طلایی است. افزایش پس‌انداز در بلندمدت منجر به افزایش موجودی سرمایه و سطح مصرف پایدار خواهد شد.")
+    with tab2:
+        show_solow_math(curr_solow, s_val, tech_val, alpha_val, ss1)
