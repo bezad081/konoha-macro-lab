@@ -99,7 +99,7 @@ if "۱." in topic:
     c1.metric("ضریب فزاینده کینزی (α)", f"{model.multiplier:.2f}")
     c2.metric("تولید تعادلی بازار کالا (Y)", f"{Y_eq:.1f} ریو")
     c3.metric("مخارج خودگردان کل (A)", f"{model.autonomous_spending(r):.1f}")
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
 
 # ==========================================
 # فصل ۲: بازار پول
@@ -118,15 +118,17 @@ elif "۲." in topic:
     c1, c2 = st.columns(2)
     c1.metric("مانده واقعی پول (M/P)", f"{model.real_money_supply:.1f}")
     c2.metric("نرخ بهره تعادلی (r)", f"{r_eq * 100:.2f}%")
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
 
 # ==========================================
 # فصل ۳: تعادل هم‌زمان IS-LM و حالات خاص
 # ==========================================
+# ==========================================
+# فصل ۳: تعادل هم‌زمان IS-LM و حالات خاص مکاتب
+# ==========================================
 elif "۳." in topic:
     st.header("⚖️ تعادل عمومی بازار کالا و پول (IS-LM)")
 
-    # سناریوهای داستانی کونوها
     st.sidebar.subheader("🎯 بسته‌های سیاستی و مأموریت‌های هوکاگه:")
     col_s1, col_s2 = st.sidebar.columns(2)
 
@@ -135,35 +137,31 @@ elif "۳." in topic:
         st.session_state.islm_m = 400.0
 
     if col_s1.button("🏛️ بسته نجات تسوناده"):
-        st.session_state.islm_g = 220.0
+        st.session_state.islm_g = 200.0
         st.session_state.islm_m = 400.0
     if col_s2.button("🔄 تعادل پایه"):
         st.session_state.islm_g = 120.0
         st.session_state.islm_m = 400.0
 
-    # حالات خاص مکاتب اقتصادی
     special_case = st.sidebar.selectbox(
         "حالات خاص و مکاتب اقتصادی:",
         ["تعادل استاندارد نئوکینزی", "تله نقدینگی کینزی (Liquidity Trap)", "دیدگاه کلاسیک (تئوری مقداری پول)"]
     )
 
     if special_case == "تله نقدینگی کینزی (Liquidity Trap)":
-        h_param = 90000.0
-        b_param = 1600.0
+        regime_mode = "liquidity_trap"
     elif special_case == "دیدگاه کلاسیک (تئوری مقداری پول)":
-        h_param = 150.0
-        b_param = 600.0
+        regime_mode = "classical"
     else:
-        h_param = 4000.0
-        b_param = 600.0
+        regime_mode = "standard"
 
     st.sidebar.subheader("تنظیم متغیرهای سیاستی:")
     g_val = st.sidebar.slider("مخارج بازسازی هوکاگه (G):", 40.0, 260.0, st.session_state.islm_g, step=10.0)
     t_val = st.sidebar.slider("نرخ مالیات (t):", 0.05, 0.40, 0.20, step=0.02)
     m_val = st.sidebar.slider("عرضه اسمی پول دهکده (M):", 150.0, 800.0, st.session_state.islm_m, step=25.0)
 
-    base_eng = ISLMEngine()
-    curr_eng = ISLMEngine(G=g_val, t=t_val, M=m_val, h=h_param, b=b_param)
+    base_eng = ISLMEngine(regime=regime_mode)
+    curr_eng = ISLMEngine(G=g_val, t=t_val, M=m_val, regime=regime_mode)
     fig, eq0, eq1 = create_islm_figure(base_eng, curr_eng)
 
     tab_chart, tab_data, tab_pedagogy = st.tabs(["📊 دیاگرام IS-LM", "📋 کارنامه شاخص‌ها", "🎓 راهنمای تدریس و حالات خاص"])
@@ -174,7 +172,7 @@ elif "۳." in topic:
         c2.metric("نرخ بهره تعادلی (r)", f"{eq1['r']*100:.2f}%", delta=f"{(eq1['r'] - eq0['r'])*100:+.2f}%")
         c3.metric("سرمایه‌گذاری خصوصی (I)", f"{eq1['I']:.1f}", delta=f"{eq1['I'] - eq0['I']:+.1f}")
         c4.metric("تراز بودجه دولت (T - G)", f"{-eq1['Deficit']:+.1f}")
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
 
     with tab_data:
         table_islm = f"""
@@ -193,14 +191,14 @@ elif "۳." in topic:
         st.markdown(table_islm, unsafe_allow_html=True)
 
     with tab_pedagogy:
-        if special_case == "تله نقدینگی کینزی (Liquidity Trap)":
-            st.info("💡 **در تله نقدینگی:** منحنی LM کاملاً افقی است. افزایش عرضه پول نمی‌تواند نرخ بهره را از این کمتر کند؛ در نتیجه سیاست پولی بی‌اثر بوده و سیاست مالی بالاترین میزان کارایی (بدون برون‌رانی سرمایه‌گذاری) را داراست.")
-        elif special_case == "دیدگاه کلاسیک (تئوری مقداری پول)":
-            st.warning("💡 **در دیدگاه کلاسیک:** منحنی LM کاملاً عمودی است. سیاست مالی با برون‌رانی ۱۰۰٪ خنثی می‌شود و تنها سیاست پولی می‌تواند تولید را جابه‌جا کند.")
+        if regime_mode == "liquidity_trap":
+            st.success("💡 **تله نقدینگی (دیدگاه کینز محض):** در این حالت نرخ بهره به حداقل ممکن رسیده و منحنی LM کاملاً افقی است. سیاست پولی هیچ اثری بر نرخ بهره و تولید ندارد، اما سیاست مالی هوکاگه با بالاترین قدرت اثر فزاینده را ایجاد می‌کند (برون‌رانی صفر درصد).")
+        elif regime_mode == "classical":
+            st.warning("💡 **دیدگاه کلاسیک (تئوری مقداری پول):** تقاضای پول هیچ حساسیتی به نرخ بهره ندارد ($h=0$)؛ منحنی LM کاملاً عمودی است. سیاست مالی مخارج دولت فقط نرخ بهره را افزایش می‌دهد و سرمایه‌گذاری را دقیقاً به همان اندازه بیرون می‌راند (برون‌رانی ۱۰۰٪). فقط سیاست پولی تولید را جابه‌جا می‌کند.")
         else:
             crowding = eq1["I"] - eq0["I"]
             if g_val > base_eng.G and crowding < 0:
-                st.info(f"💡 **تحلیل برون‌رانی:** افزایش مخارج دولت نرخ بهره را افزایش داده و سرمایه‌گذاری بخش خصوصی را `{abs(crowding):.1f}` واحد کاهش داده است.")
+                st.info(f"💡 **تحلیل برون‌رانی استاندارد:** افزایش مخارج دولت نرخ بهره را افزایش داده و سرمایه‌گذاری بخش خصوصی را `{abs(crowding):.1f}` واحد کاهش داده است.")
 
 # ==========================================
 # فصل ۴: مدل AD-AS و فیلیپس
@@ -240,7 +238,7 @@ elif "۴." in topic:
 
     if shock_val > 0 and eq1["Y"] < base_model.Y_potential:
         st.error("⚠️ **تشخیص رکود تورمی (Stagflation):** هم‌زمانی کاهش تولید و جهش شاخص قیمت‌ها.")
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
 
 # ==========================================
 # فصل ۵: ماندل-فلمینگ (اقتصاد باز)
@@ -261,7 +259,7 @@ elif "۵." in topic:
     c2.metric("نرخ بهره داخلی (r)", f"{eq1['r']*100:.2f}%", delta=f"{(eq1['r'] - eq0['r'])*100:+.2f}%")
     c3.metric("خالص صادرات (NX)", f"{eq1['NX']:+.1f}")
     c4.metric("صادرات / واردات", f"{eq1['Exports']:.0f} / {eq1['Imports']:.0f}")
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
 
 # ==========================================
 # فصل ۶: مدل رشد سولو
@@ -291,7 +289,7 @@ elif "۶." in topic:
         c2.metric("تولید سرانه (y*)", f"{ss1['y_star']:.2f}", delta=f"{ss1['y_star'] - ss0['y_star']:+.2f}")
         c3.metric("مصرف سرانه (c*)", f"{ss1['c_star']:.2f}", delta=f"{ss1['c_star'] - ss0['c_star']:+.2f}")
         c4.metric("نرخ پس‌انداز قاعده طلایی", f"{ss1['s_gold']*100:.0f}%")
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True})
 
     with tab_solow_metrics:
         table_solow = f"""

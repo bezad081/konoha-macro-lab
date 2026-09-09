@@ -200,6 +200,6 @@ def create_adas_figure(base_model: ADASModel, current_model: ADASModel):
         height=480, plot_bgcolor=PLOT_THEME["bg_color"], paper_bgcolor=PLOT_THEME["bg_color"],
         legend=dict(orientation="h", y=-0.24, x=0.5, xanchor="center"),
         margin=dict(l=75, r=35, t=40, b=70),
-        uirevision="never"
+        
     )
     return fig, eq0, eq1

@@ -153,6 +153,6 @@ def create_goods_market_figure(model: GoodsMarketModel, r_current: float = 0.05,
         height=480, plot_bgcolor=PLOT_THEME["bg_color"], paper_bgcolor=PLOT_THEME["bg_color"],
         legend=dict(orientation="h", y=-0.24, x=0.5, xanchor="center"),
         margin=dict(l=75, r=35, t=40, b=70),
-        uirevision="never"
+       
     )
     return fig, Y_eq1
