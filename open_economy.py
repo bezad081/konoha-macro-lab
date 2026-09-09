@@ -6,9 +6,9 @@ PLOT_THEME = {
     "font_family": "Vazirmatn, Tahoma, sans-serif",
     "bg_color": "#ffffff",
     "grid_color": "#f1f5f9",
-    "is_color": "#dc2626",
-    "lm_color": "#2563eb",
-    "bp_color": "#059669"
+    "is_color": "#dc2626",   # قرمز IS
+    "lm_color": "#2563eb",   # آبی LM
+    "bp_color": "#16a34a"    # سبز BP
 }
 
 @dataclass
@@ -17,7 +17,7 @@ class MundellFlemingModel:
     mpc: float = 0.75
     t: float = 0.20
     i0: float = 140.0
-    b: float = 600.0
+    b: float = 800.0
     G: float = 120.0
     
     M: float = 400.0
@@ -25,70 +25,62 @@ class MundellFlemingModel:
     k: float = 0.50
     h: float = 4000.0
 
-    # پارامترهای بخش خارجی (دهکده سنگ و خاک - ایواگاکوره)
+    # پارامترهای خارجی دهکده سنگ
     Y_foreign: float = 1000.0
     r_foreign: float = 0.05
     x0: float = 80.0
     x1: float = 0.10
     m0: float = 50.0
     m1: float = 0.15
-    eta: float = 60.0
+    eta: float = 80.0
     exchange_rate: float = 1.0
-    capital_mobility: float = 12000.0  # تحرک بالای سرمایه
-    regime: str = "floating"  # "floating" (شناور) یا "fixed" (ثابت)
+    regime: str = "floating"  # "floating" یا "fixed"
 
     @property
     def open_multiplier(self) -> float:
         denom = 1.0 - self.mpc * (1.0 - self.t) + self.m1
         return 1.0 / denom if denom > 0 else 1.0
 
-    def autonomous_open_demand(self, e: float) -> float:
-        nx_auto = (self.x0 + self.x1 * self.Y_foreign) - self.m0 + (self.eta * e)
-        return self.c0 + self.i0 + self.G + nx_auto
-
-    def get_is_curve(self, Y: np.ndarray, e: float) -> np.ndarray:
+    def get_is_curve(self, Y: np.ndarray, e_val: float) -> np.ndarray:
         alpha = self.open_multiplier
-        A = self.autonomous_open_demand(e)
+        # A_total = c0 + i0 + G + (x0 + x1*Yf - m0 + eta*e)
+        A = self.c0 + self.i0 + self.G + (self.x0 + self.x1 * self.Y_foreign - self.m0 + self.eta * e_val)
         return (A / self.b) - (Y / (alpha * self.b))
 
     def get_lm_curve(self, Y: np.ndarray, M_val: float) -> np.ndarray:
         real_M = M_val / self.P
         r = (self.k * Y - real_M) / self.h
-        return np.maximum(0.001, r)
-
-    def get_bp_curve(self, Y: np.ndarray, e: float) -> np.ndarray:
-        nx_auto = (self.x0 + self.x1 * self.Y_foreign) - self.m0 + (self.eta * e)
-        return self.r_foreign + (self.m1 * Y - nx_auto) / self.capital_mobility
+        return np.maximum(0.005, r)
 
     def solve_equilibrium(self):
-        """حل دقیق تعادل تراز پرداخت‌ها و تعادل عمومی در نظام‌های ارزی"""
+        """
+        در ماندل-فلمینگ استاندارد با تحرک سرمایه، در تعادل پایدار نرخ بهره داخلی
+        با نرخ بهره دهکده سنگ برابر می‌شود (r = r_foreign).
+        """
+        r_eq = self.r_foreign
         alpha = self.open_multiplier
 
         if self.regime == "floating":
-            # در نرخ ارز شناور، M ثابت است و تعادل روی BP (نزدیک r*) با تعدیل نرخ ارز e حاصل می‌شود
-            # با تحرک بالای سرمایه، r به سمت r_foreign میل می‌کند:
-            r_eq = self.r_foreign
-            # از معادله LM:
+            # در شناور: عرضه پول تثبیت‌شده است و درآمد از LM در نرخ r* تعیین می‌شود
             real_M = self.M / self.P
             Y_eq = (real_M + self.h * r_eq) / self.k
-            
-            # نرخ ارزی که باعث تقاطع IS در این نقطه می‌شود:
-            # Y = alpha * [c0 + i0 - b*r + G + x0 + x1*Yf - m0 + eta*e]
-            base_A = self.c0 + self.i0 - self.b * r_eq + self.G + (self.x0 + self.x1 * self.Y_foreign) - self.m0
-            e_eq = ((Y_eq / alpha) - base_A) / self.eta
-            e_eq = max(0.1, float(e_eq))
             endogenous_M = self.M
-            
+
+            # نرخ ارز تعدیل می‌شود تا IS دقیقاً در (Y_eq, r*) تقاطع کند
+            # Y = alpha * [c0 + i0 - b*r* + G + x0 + x1*Yf - m0 + eta*e]
+            base_spending = self.c0 + self.i0 - self.b * r_eq + self.G + self.x0 + self.x1 * self.Y_foreign - self.m0
+            e_eq = ((Y_eq / alpha) - base_spending) / self.eta
+            e_eq = max(0.1, float(e_eq))
+
         else:  # نظام نرخ ارز ثابت
             e_eq = self.exchange_rate  # نرخ ارز ثابت است
-            r_eq = self.r_foreign
-            # تقاضای کل از IS با نرخ ارز تثبیت‌شده و نرخ بهره برابر با جهان به دست می‌آید:
-            A = self.autonomous_open_demand(e_eq)
+            # درآمد توسط IS در نرخ ارز ثابت و r* تعیین می‌شود
+            A = self.c0 + self.i0 + self.G + (self.x0 + self.x1 * self.Y_foreign - self.m0 + self.eta * e_eq)
             Y_eq = alpha * (A - self.b * r_eq)
-            # بانک مرکزی مجبور است عرضه پول را طوری تطبیق دهد که r با جهان برابر بماند:
-            # r = (k*Y - M/P) / h  =>  M/P = k*Y - h*r
-            real_M_endogenous = max(50.0, self.k * Y_eq - self.h * r_eq)
-            endogenous_M = real_M_endogenous * self.P
+
+            # عرضه پول توسط بانک مرکزی تعدیل می‌شود تا LM دقیقاً در (Y_eq, r*) قرار گیرد
+            real_M_needed = max(50.0, self.k * Y_eq - self.h * r_eq)
+            endogenous_M = real_M_needed * self.P
 
         exports = self.x0 + self.x1 * self.Y_foreign + self.eta * e_eq
         imports = self.m0 + self.m1 * Y_eq
@@ -113,47 +105,39 @@ def create_mundell_fleming_figure(base_model: MundellFlemingModel, current_model
     y_max = max(1350.0, center_y + 450.0)
     Y_vals = np.linspace(y_min, y_max, 300)
 
-    # منحنی‌های تعادلی نهایی
-    is_base = base_model.get_is_curve(Y_vals, e=eq0["e"])
-    is_curr = current_model.get_is_curve(Y_vals, e=eq1["e"])
+    # محاسبه منحنی‌ها به شکلی که هر ۳ خط در نقطه تعادل دقیقاً متقاطع شوند
+    is_base = np.maximum(0.005, base_model.get_is_curve(Y_vals, e_val=eq0["e"]))
     lm_base = base_model.get_lm_curve(Y_vals, M_val=eq0["M"])
+
+    is_curr = np.maximum(0.005, current_model.get_is_curve(Y_vals, e_val=eq1["e"]))
     lm_curr = current_model.get_lm_curve(Y_vals, M_val=eq1["M"])
-    bp_base = base_model.get_bp_curve(Y_vals, e=eq0["e"])
-    bp_curr = current_model.get_bp_curve(Y_vals, e=eq1["e"])
 
     fig = go.Figure()
 
     # خطوط مبنا
-    fig.add_trace(go.Scatter(x=Y_vals, y=is_base, mode="lines", line=dict(dash="dot", color="#cbd5e1", width=1.5), name="IS مبنا"))
-    fig.add_trace(go.Scatter(x=Y_vals, y=lm_base, mode="lines", line=dict(dash="dot", color="#cbd5e1", width=1.5), name="LM مبنا"))
-    fig.add_trace(go.Scatter(x=Y_vals, y=bp_base, mode="lines", line=dict(dash="dot", color="#a7f3d0", width=1.5), name="BP مبنا"))
-
-    # خطوط جاری
-    fig.add_trace(go.Scatter(
-        x=Y_vals, y=is_curr, mode="lines",
-        line=dict(color=PLOT_THEME["is_color"], width=3), name="منحنی IS (تعادل نهایی)",
-        hovertemplate="تولید: %{x:.1f} | بهره: %{y:.2%}<extra></extra>"
-    ))
-    fig.add_trace(go.Scatter(
-        x=Y_vals, y=lm_curr, mode="lines",
-        line=dict(color=PLOT_THEME["lm_color"], width=3), name="منحنی LM (تعادل نهایی)",
-        hovertemplate="تولید: %{x:.1f} | بهره: %{y:.2%}<extra></extra>"
-    ))
-    fig.add_trace(go.Scatter(
-        x=Y_vals, y=bp_curr, mode="lines",
-        line=dict(color=PLOT_THEME["bp_color"], width=3), name="تراز پرداخت‌ها (منحنی BP)",
-        hovertemplate="تولید: %{x:.1f} | تعادل خارجی: %{y:.2%}<extra></extra>"
-    ))
-
-    # نقاط تعادل
+    fig.add_trace(go.Scatter(x=Y_vals, y=is_base, mode="lines", line=dict(dash="dot", color="#94a3b8", width=1.5), name="IS مبنا"))
+    fig.add_trace(go.Scatter(x=Y_vals, y=lm_base, mode="lines", line=dict(dash="dot", color="#94a3b8", width=1.5), name="LM مبنا"))
     fig.add_trace(go.Scatter(x=[eq0["Y"]], y=[eq0["r"]], mode="markers+text", marker=dict(size=8, color="#64748b"), text=["E₀"], textposition="top right", name="تعادل اولیه E₀"))
-    fig.add_trace(go.Scatter(x=[eq1["Y"]], y=[eq1["r"]], mode="markers+text", marker=dict(size=12, color="#0f172a"), text=["E₁"], textposition="top left", name="تعادل نهایی E₁"))
 
-    # خط نرخ بهره جهانی دهکده سنگ
-    fig.add_shape(type="line", x0=y_min, x1=y_max, y0=current_model.r_foreign, y1=current_model.r_foreign, line=dict(dash="dash", color="#10b981", width=1.2))
-    fig.add_annotation(x=y_min + 50, y=current_model.r_foreign + 0.005, text="نرخ بهره جهانی دهکده سنگ (r*)", showarrow=False, font=dict(color="#059669", size=11))
+    # خطوط تعادل نهایی (هم‌گرا شده)
+    fig.add_trace(go.Scatter(x=Y_vals, y=is_curr, mode="lines", line=dict(color=PLOT_THEME["is_color"], width=3), name="منحنی IS جاری"))
+    fig.add_trace(go.Scatter(x=Y_vals, y=lm_curr, mode="lines", line=dict(color=PLOT_THEME["lm_color"], width=3), name="منحنی LM جاری"))
 
-    # فلش انتقال تعادل
+    # خط تراز پرداخت‌ها BP (کاملاً تراز روی نرخ بهره جهانی)
+    fig.add_trace(go.Scatter(
+        x=[y_min, y_max], y=[current_model.r_foreign, current_model.r_foreign],
+        mode="lines", line=dict(color=PLOT_THEME["bp_color"], width=3.5, dash="dash"),
+        name="تراز پرداخت‌ها BP (r = r*)"
+    ))
+
+    # نقطه تعادل نهایی هم‌زمان (تقاطع کامل هر ۳ خط)
+    fig.add_trace(go.Scatter(
+        x=[eq1["Y"]], y=[eq1["r"]], mode="markers+text",
+        marker=dict(size=12, color="#0f172a"), text=["E₁"], textposition="top left",
+        name="تعادل نهایی هر ۳ بازار"
+    ))
+
+    # فلش دینامیک انتقال
     delta_y = abs(eq1["Y"] - eq0["Y"])
     delta_r = abs(eq1["r"] - eq0["r"])
     if delta_y > 10.0 or delta_r > 0.003:
@@ -163,11 +147,11 @@ def create_mundell_fleming_figure(base_model: MundellFlemingModel, current_model
             showarrow=True, arrowhead=2, arrowsize=1.3, arrowwidth=2.5, arrowcolor="#10b981"
         )
 
-    # خطوط راهنما به محورها
+    # خطوط راهنما
     fig.add_shape(type="line", x0=eq1["Y"], x1=eq1["Y"], y0=0, y1=eq1["r"], line=dict(dash="dot", color="#94a3b8"))
     fig.add_shape(type="line", x0=y_min, x1=eq1["Y"], y0=eq1["r"], y1=eq1["r"], line=dict(dash="dot", color="#94a3b8"))
 
-    max_r = max(0.14, eq0["r"] * 1.5, eq1["r"] * 1.5, current_model.r_foreign * 1.6)
+    max_r = max(0.14, eq0["r"] * 1.6, eq1["r"] * 1.6, current_model.r_foreign * 1.6)
 
     fig.update_xaxes(title_text="تولید ناخالص داخلی کونوها (Y)", range=[y_min, y_max], gridcolor=PLOT_THEME["grid_color"], automargin=True)
     fig.update_yaxes(title_text="نرخ بهره داخلی (r)", tickformat=".1%", range=[0.0, min(0.20, max_r)], gridcolor=PLOT_THEME["grid_color"], automargin=True)
