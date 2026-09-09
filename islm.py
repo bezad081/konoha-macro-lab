@@ -23,6 +23,7 @@ class ISLMEngine:
     k: float = 0.50
     h: float = 4000.0
     regime: str = "standard"  # "standard", "liquidity_trap", "classical"
+    r_floor: float = 0.015    # کف نرخ بهره در تله نقدینگی (1.5%)
 
     @property
     def multiplier(self) -> float:
@@ -33,30 +34,48 @@ class ISLMEngine:
     def autonomous_spending(self) -> float:
         return self.c0 + self.i0 + self.G
 
+    @property
+    def trap_threshold_y(self) -> float:
+        """مرز تولیدی که پس از آن تقاضای معاملاتی پول، نرخ بهره را از کف بالا می‌کشد"""
+        real_M = self.M / self.P
+        # در تله نقدینگی، فرض آموزشی بر این است که دامنه تله تا تولیدات بالاتر ادامه دارد
+        effective_h = 25000.0 if self.regime == "liquidity_trap" else self.h
+        return (real_M + effective_h * self.r_floor) / self.k
+
     def solve_equilibrium(self):
         alpha = self.multiplier
         A = self.autonomous_spending
         real_M = self.M / self.P
 
-        if self.regime == "liquidity_trap":
-            # در تله نقدینگی، نرخ بهره روی کف تله (مثلاً 1.5%) قفل است
-            r_floor = 0.015
-            Y_star = alpha * (A - self.b * r_floor)
-            r_star = r_floor
-
-        elif self.regime == "classical":
-            # در دیدگاه کلاسیک، تقاضای پول مستقل از بهره است و Y منحصراً توسط M/P تعیین می‌شود: Y = (M/P) / k
+        if self.regime == "classical":
+            # در دیدگاه کلاسیک، منحنی LM عمودی است: Y = (M/P)/k
             Y_star = real_M / self.k
-            # نرخ بهره از برابری بازار کالا بر روی منحنی IS به دست می‌آید
             r_star = (A / self.b) - (Y_star / (alpha * self.b))
-            r_star = max(0.005, r_star)
+            r_star = max(0.002, r_star)
+
+        elif self.regime == "liquidity_trap":
+            effective_h = 25000.0
+            y_trap = (real_M + effective_h * self.r_floor) / self.k
+
+            # آزمون تقاطع با شاخه افقی:
+            Y_flat = alpha * (A - self.b * self.r_floor)
+
+            if Y_flat <= y_trap:
+                # تقاطع در داخل تله نقدینگی رخ می‌دهد
+                Y_star = Y_flat
+                r_star = self.r_floor
+            else:
+                # تقاطع با شاخه صعودی LM رخ می‌دهد (خروج از تله)
+                denom = (1.0 / alpha) + (self.b * self.k / effective_h)
+                Y_star = (A + (self.b / effective_h) * real_M) / denom
+                r_star = (self.k * Y_star - real_M) / effective_h
 
         else:  # استاندارد
             denom = (1.0 / alpha) + (self.b * self.k / self.h)
             Y_star = (A + (self.b / self.h) * real_M) / denom
             r_star = (self.k * Y_star - real_M) / self.h
-            if r_star < 0.005:
-                r_star = 0.005
+            if r_star < self.r_floor:
+                r_star = self.r_floor
                 Y_star = alpha * (A - self.b * r_star)
 
         T = self.t * Y_star
@@ -79,13 +98,12 @@ class ISLMEngine:
 
     def get_lm_curve(self, Y_vals: np.ndarray) -> np.ndarray:
         real_M = self.M / self.P
-        if self.regime == "liquidity_trap":
-            # منحنی LM کینزی: یک بخش افقی روی r_floor تا زمانی که به بخش صعودی برسد
-            r_floor = 0.015
-            r_normal = (self.k * Y_vals - real_M) / self.h
-            return np.maximum(r_floor, r_normal)
-        elif self.regime == "classical":
-            return np.full_like(Y_vals, np.nan)  # به صورت خط عمودی جداگانه رسم می‌شود
+        if self.regime == "classical":
+            return np.full_like(Y_vals, np.nan)
+        elif self.regime == "liquidity_trap":
+            effective_h = 25000.0
+            r_normal = (self.k * Y_vals - real_M) / effective_h
+            return np.maximum(self.r_floor, r_normal)
         else:
             r = (self.k * Y_vals - real_M) / self.h
             return np.maximum(0.005, r)
@@ -94,10 +112,9 @@ def create_islm_figure(base_engine: ISLMEngine, current_engine: ISLMEngine):
     eq0 = base_engine.solve_equilibrium()
     eq1 = current_engine.solve_equilibrium()
 
-    # کادربندی بهینه حول نقاط تعادل
     center_y = (eq0["Y"] + eq1["Y"]) / 2.0
     y_min = max(300.0, center_y - 450.0)
-    y_max = max(1300.0, center_y + 450.0)
+    y_max = max(1350.0, center_y + 450.0)
     Y_vals = np.linspace(y_min, y_max, 300)
 
     is_base = base_engine.get_is_curve(Y_vals)
@@ -105,25 +122,22 @@ def create_islm_figure(base_engine: ISLMEngine, current_engine: ISLMEngine):
 
     fig = go.Figure()
 
-    # --- منحنی‌های مبنا (خاکستری نقطه‌چین) ---
+    # خطوط مبنا
     fig.add_trace(go.Scatter(
         x=Y_vals, y=is_base, mode="lines",
-        line=dict(dash="dot", color="#94a3b8", width=1.5), name="IS مبنا",
-        hovertemplate="IS مبنا: %{y:.2%}<extra></extra>"
+        line=dict(dash="dot", color="#94a3b8", width=1.5), name="IS مبنا"
     ))
 
     if base_engine.regime == "classical":
         y_class_base = (base_engine.M / base_engine.P) / base_engine.k
         fig.add_trace(go.Scatter(
             x=[y_class_base, y_class_base], y=[0.001, 0.20], mode="lines",
-            line=dict(dash="dot", color="#94a3b8", width=1.5), name="LM مبنا (عمودی)",
-            hovertemplate="LM کلاسیک مبنا: %{x:.0f}<extra></extra>"
+            line=dict(dash="dot", color="#94a3b8", width=1.5), name="LM مبنا (عمودی)"
         ))
     else:
         fig.add_trace(go.Scatter(
             x=Y_vals, y=base_engine.get_lm_curve(Y_vals), mode="lines",
-            line=dict(dash="dot", color="#94a3b8", width=1.5), name="LM مبنا",
-            hovertemplate="LM مبنا: %{y:.2%}<extra></extra>"
+            line=dict(dash="dot", color="#94a3b8", width=1.5), name="LM مبنا"
         ))
 
     fig.add_trace(go.Scatter(
@@ -132,38 +146,36 @@ def create_islm_figure(base_engine: ISLMEngine, current_engine: ISLMEngine):
         name="تعادل مبدا E₀"
     ))
 
-    # --- منحنی‌های جاری ---
+    # خطوط جاری
     fig.add_trace(go.Scatter(
         x=Y_vals, y=is_curr, mode="lines",
-        line=dict(color=PLOT_THEME["is_color"], width=3), name="منحنی IS جاری",
-        hovertemplate="تولید: %{x:.1f} | بهره: %{y:.2%}<extra></extra>"
+        line=dict(color=PLOT_THEME["is_color"], width=3), name="منحنی IS جاری"
     ))
 
     if current_engine.regime == "classical":
         y_class_curr = (current_engine.M / current_engine.P) / current_engine.k
         fig.add_trace(go.Scatter(
             x=[y_class_curr, y_class_curr], y=[0.001, 0.20], mode="lines",
-            line=dict(color=PLOT_THEME["lm_color"], width=3.5), name="منحنی LM (کلاسیک - کاملاً عمودی)",
-            hovertemplate="تولید مقداری کلاسیک: %{x:.1f}<extra></extra>"
+            line=dict(color=PLOT_THEME["lm_color"], width=3.5), name="منحنی LM (کلاسیک)"
         ))
     else:
-        lm_name = "منحنی LM (تله نقدینگی - بخش افقی)" if current_engine.regime == "liquidity_trap" else "منحنی LM جاری"
+        lm_name = "منحنی LM (شامل کف نقدینگی)" if current_engine.regime == "liquidity_trap" else "منحنی LM جاری"
         fig.add_trace(go.Scatter(
             x=Y_vals, y=current_engine.get_lm_curve(Y_vals), mode="lines",
-            line=dict(color=PLOT_THEME["lm_color"], width=3), name=lm_name,
-            hovertemplate="تولید: %{x:.1f} | بهره تعادلی: %{y:.2%}<extra></extra>"
+            line=dict(color=PLOT_THEME["lm_color"], width=3), name=lm_name
         ))
 
+    # نقطه تعادل جدید E1 (دقیقاً بر روی تقاطع هندسی دو منحنی)
     fig.add_trace(go.Scatter(
         x=[eq1["Y"]], y=[eq1["r"]], mode="markers+text",
         marker=dict(size=12, color="#0f172a"), text=["E₁"], textposition="top left",
         name="تعادل جاری E₁"
     ))
 
-    # فلش هدایت تعادل
+    # فلش دینامیک انتقال تعادل
     delta_y = abs(eq1["Y"] - eq0["Y"])
     delta_r = abs(eq1["r"] - eq0["r"])
-    if delta_y > 10.0 or delta_r > 0.003:
+    if delta_y > 8.0 or delta_r > 0.002:
         fig.add_annotation(
             ax=eq0["Y"], ay=eq0["r"], x=eq1["Y"], y=eq1["r"],
             xref="x", yref="y", axref="x", ayref="y",
@@ -171,7 +183,7 @@ def create_islm_figure(base_engine: ISLMEngine, current_engine: ISLMEngine):
             arrowcolor="#10b981", opacity=0.9
         )
 
-    # خطوط راهنمای تعادل جاری به محورها
+    # خطوط راهنما به محورها
     fig.add_shape(type="line", x0=eq1["Y"], x1=eq1["Y"], y0=0, y1=eq1["r"], line=dict(dash="dot", color="#94a3b8"))
     fig.add_shape(type="line", x0=y_min, x1=eq1["Y"], y0=eq1["r"], y1=eq1["r"], line=dict(dash="dot", color="#94a3b8"))
 
