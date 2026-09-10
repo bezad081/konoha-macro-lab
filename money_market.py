@@ -18,7 +18,7 @@ class MoneyMarketModel:
     k: float = 0.50
     h: float = 4000.0
     r_floor: float = 0.015  # حداقل نرخ بهره (کف دام نقدینگی)
-    regime: str = "standard"  # "standard", "liquidity_trap", "classical"
+    regime: str = "standard"  # مقادیر: "standard", "liquidity_trap", "classical"
 
     @property
     def real_money_supply(self) -> float:
@@ -27,13 +27,10 @@ class MoneyMarketModel:
     def demand_curve_r(self, m_vals: np.ndarray, Y: float) -> np.ndarray:
         ky = self.k * Y
         if self.regime == "classical":
-            # در حالت کلاسیک تقاضا مستقل از بهره است (عمودی در ky)
             return np.full_like(m_vals, 0.05)
         elif self.regime == "liquidity_trap":
-            # در دام نقدینگی، تقاضا کاملاً روی کف افقی می‌نشیند
             return np.full_like(m_vals, self.r_floor)
         else:
-            # تابع مجانب غیرخطی طبق کتاب مدرسان شریف
             denom = np.maximum(10.0, m_vals - ky + 150.0)
             r = self.r_floor + (self.h * 0.08) / denom
             return np.maximum(self.r_floor, r)
@@ -67,7 +64,7 @@ def create_money_market_figure(model: MoneyMarketModel, Y_current: float = 1000.
 
     fig = go.Figure()
 
-    # خط تقاضای معاملاتی KY (مجانب عمودی)
+    # خط تقاضای معاملاتی KY (مجانب عمودی طبق کتاب شریف)
     ky_curr = model.k * Y_current
     fig.add_trace(go.Scatter(
         x=[ky_curr, ky_curr], y=[0, max_r],
@@ -82,7 +79,7 @@ def create_money_market_figure(model: MoneyMarketModel, Y_current: float = 1000.
         name=f"کف دام نقدینگی ({model.r_floor*100:.1f}%)"
     ))
 
-    # رسم تقاضای پول
+    # رسم منحنی تقاضای پول
     if model.regime == "classical":
         fig.add_trace(go.Scatter(
             x=[ky_curr, ky_curr], y=[0, max_r],
@@ -107,7 +104,7 @@ def create_money_market_figure(model: MoneyMarketModel, Y_current: float = 1000.
             line=dict(color=PLOT_THEME["md_color"], width=3), name="منحنی تقاضای کل پول (Mᵈ/P)"
         ))
 
-    # عرضه پول عمودی (Ms/P)
+    # خطوط عمودی عرضه پول M/P
     fig.add_trace(go.Scatter(
         x=[ms0, ms0], y=[0, max_r], mode="lines",
         line=dict(dash="dot", color="#94a3b8", width=1.5), name=f"عرضه پول مبنا (M₀/P={ms0:.0f})"
@@ -127,7 +124,7 @@ def create_money_market_figure(model: MoneyMarketModel, Y_current: float = 1000.
         marker=dict(size=12, color="#0f172a"), text=["E₁"], textposition="top right", name="تعادل جدید E₁"
     ))
 
-    # فلش دینامیک
+    # فلش تغییرات تعادل
     if abs(r1 - r0) > 0.002 or abs(ms1 - ms0) > 10.0:
         fig.add_annotation(
             ax=ms0, ay=r0, x=ms1, y=r1,
