@@ -4,7 +4,7 @@ TEXTS = {
         "align": "right",
         "lang_name": "فارسی",
         "app_title": "🍃 اتاق عملیات اقتصادی هوکاگه | شبیه‌ساز اقتصاد کلان کونوها",
-        "banner": "<b>سامانه تعاملی تدریس اقتصاد کلان:</b> تحلیل زنده تعادل عمومی، سیاست‌های پولی و مالی، نظام‌های ارزی و رشد اقتصادی.",
+        "banner": "<b>سامانه تعاملی تدریس اقتصاد کلان:</b> تحلیل زنده تعادل عمومی، سیاست‌های پولی و مالی، نظام‌های ارزی، پویایی زمانی و رشد اقتصادی.",
         "course_syllabus": "طرح درس اقتصاد کلان",
         "select_chapter": "فصل مورد نظر را انتخاب کنید:",
         "chapters": [
@@ -42,6 +42,11 @@ TEXTS = {
         "buttons": {
             "rescue_tsunade": "🏛️ بسته نجات تسوناده",
             "baseline": "🔄 تعادل پایه"
+        },
+        "dynamics": {
+            "settings_title": "⚙️ تنظیمات پویایی زمانی:",
+            "cobweb_checkbox": "نمایش فرآیند پله‌ای تعدیل انبار (Cobweb Path)",
+            "step_path_label": "مسیر پله‌ای تعدیل موجودی انبار"
         }
     },
     "en": {
@@ -49,7 +54,7 @@ TEXTS = {
         "align": "left",
         "lang_name": "English",
         "app_title": "🍃 Hokage Economic Operations Room | Konoha Macro Simulator",
-        "banner": "<b>Interactive Macroeconomics Teaching Lab:</b> Real-time general equilibrium, monetary & fiscal policy, FX regimes, and growth models.",
+        "banner": "<b>Interactive Macroeconomics Teaching Lab:</b> Real-time general equilibrium, monetary & fiscal policy, FX regimes, dynamic trajectories, and growth models.",
         "course_syllabus": "Macroeconomics Course Syllabus",
         "select_chapter": "Select Chapter:",
         "chapters": [
@@ -87,6 +92,11 @@ TEXTS = {
         "buttons": {
             "rescue_tsunade": "🏛️ Tsunade Relief Package",
             "baseline": "🔄 Baseline Equilibrium"
+        },
+        "dynamics": {
+            "settings_title": "⚙️ Dynamic Settings:",
+            "cobweb_checkbox": "Show Stepped Inventory Adjustment (Cobweb Path)",
+            "step_path_label": "Inventory Adjustment Path"
         }
     }
 }
