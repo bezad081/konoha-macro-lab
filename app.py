@@ -19,10 +19,10 @@ from math_explainer import (
 from translations import TEXTS
 
 # ==========================================
-# نقشه ترجمه المان‌های نمودار پلاتلی
+# نقشه جامع ترجمه المان‌های گرافیکی Plotly
 # ==========================================
 PLOT_TRANSLATIONS = {
-    # محورها
+    # عناوین محورها
     "تولید ناخالص داخلی (Y)": "Real GDP (Y)",
     "تولید ناخالص داخلی تعادلی (Y)": "Equilibrium Real GDP (Y)",
     "تولید ناخالص داخلی کونوها (Y)": "Konoha Real GDP (Y)",
@@ -39,7 +39,7 @@ PLOT_TRANSLATIONS = {
     "سرمایه سرانه مؤثر (k)": "Effective Capital per Worker (k)",
     "تولید و سرمایه‌گذاری سرانه": "Output & Investment per Worker",
 
-    # لژاندها و برچسب‌های خطوط
+    # لژاندها و خطوط
     "خط ۴۵ درجه (Y = Z)": "45° Line (Y = Z)",
     "تقاضای برنامه‌ریزی‌شده مبنا": "Baseline Planned Demand",
     "تقاضای جاری (Z)": "Current Planned Demand (Z)",
@@ -53,6 +53,8 @@ PLOT_TRANSLATIONS = {
     "منحنی LM (کلاسیک)": "Classical Vertical LM",
     "منحنی تقاضای کل پول (Mᵈ/P)": "Total Money Demand (Mᵈ/P)",
     "تقاضای پول مبنا (L₀)": "Baseline Money Demand (L₀)",
+    "تقاضای پول کلاسیک (عمودی L = kY)": "Classical Money Demand (L = kY)",
+    "تقاضای پول در دام نقدینگی (کاملاً افقی)": "Liquidity Trap Demand (Horizontal)",
     "تعادل اولیه E₀": "Initial Equilibrium E₀",
     "تعادل اولیه": "Initial Equilibrium",
     "تعادل جدید E₁": "New Equilibrium E₁",
@@ -78,6 +80,7 @@ PLOT_TRANSLATIONS = {
 }
 
 def translate_figure_to_en(fig):
+    """ترجمه زنده تمام اجزای نمودار Plotly به انگلیسی"""
     for trace in fig.data:
         if hasattr(trace, "name") and trace.name in PLOT_TRANSLATIONS:
             trace.name = PLOT_TRANSLATIONS[trace.name]
@@ -125,19 +128,17 @@ lang_choice = st.sidebar.selectbox("🌐 زبان / Language:", ["فارسی (FA
 lang = "en" if "EN" in lang_choice else "fa"
 T = TEXTS[lang]
 
-# استایل CSS: جهت صفحه و رفع دقیق باگ باز/بسته شدن سایدبار
+# اعمال CSS بهینه جهت عدم به هم ریختگی ترنزیشن سایدبار
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;500;700;900&family=Inter:wght@400;600;700&display=swap');
 
-    /* اعمال استایل فونت و جهت صرفاً به کانتینر اصلی صفحه */
     .main .block-container {{
         font-family: {"'Inter', sans-serif" if lang == "en" else "'Vazirmatn', Tahoma, sans-serif"};
         direction: {T["dir"]};
         text-align: {T["align"]};
     }}
 
-    /* جلوگیری از ماندن متون و سرریز المان‌ها هنگام جمع شدن سایدبار */
     [data-testid="stSidebar"] {{
         overflow-x: hidden !important;
     }}
@@ -241,20 +242,31 @@ if "IS" in topic or "کالا" in topic:
 # ==========================================
 elif "LM" in topic or "پول" in topic:
     st.header("🏦 " + ("Money Market & Liquidity Preference (Keynesian Model)" if lang == "en" else "بازار پول و نظریه ترجیح نقدینگی کینز"))
+
+    st.sidebar.subheader("🎓 " + ("Theoretical Regimes:" if lang == "en" else "مکاتب و حالات خاص بازار پول:"))
+    money_cases = [
+        "Standard Keynesian Model", "Liquidity Trap (Horizontal Demand)", "Classical Case (Vertical Demand)"
+    ] if lang == "en" else [
+        "دیدگاه کینزی استاندارد (تابع مجانب)", "دام نقدینگی کینزی (حساسیت نامحدود تقاضا به بهره)", "دیدگاه کلاسیک (عدم وابستگی تقاضا به بهره)"
+    ]
+    selected_money_case = st.sidebar.selectbox("انتخاب حالت:", money_cases)
+    m_regime = "liquidity_trap" if ("Trap" in selected_money_case or "تله" in selected_money_case or "دام" in selected_money_case) else ("classical" if ("Classical" in selected_money_case or "کلاسیک" in selected_money_case) else "standard")
+
+    st.sidebar.subheader("تنظیم متغیرها:")
     m = st.sidebar.slider("M:" if lang == "en" else "عرضه اسمی پول (M):", 200.0, 800.0, 400.0, step=25.0)
     p = st.sidebar.slider("P:" if lang == "en" else "شاخص سطح قیمت‌ها (P):", 0.5, 2.0, 1.0, step=0.1)
     k = st.sidebar.slider("k:" if lang == "en" else "حساسیت تقاضای پول به درآمد (k):", 0.2, 0.8, 0.50, step=0.05)
     h = st.sidebar.slider("h:" if lang == "en" else "حساسیت تقاضای پول به بهره (h):", 1000.0, 8000.0, 4000.0, step=500.0)
     y_curr = st.sidebar.slider("Y:" if lang == "en" else "درآمد ناخالص جاری (Y):", 600.0, 1500.0, 1000.0, step=50.0)
 
-    model = MoneyMarketModel(M=m, P=p, k=k, h=h)
+    model = MoneyMarketModel(M=m, P=p, k=k, h=h, regime=m_regime)
     fig, r_eq = create_money_market_figure(model, Y_current=y_curr)
 
     c1, c2 = st.columns(2)
     c1.metric(T["metrics_labels"]["real_m"], f"{model.real_money_supply:.1f}")
     c2.metric(T["metrics_labels"]["interest"], f"{r_eq * 100:.2f}%")
 
-    tab1, tab2, tab3 = st.tabs([T["tabs"]["charts"], T["tabs"]["metrics"], T["tabs"]["math"]])
+    tab1, tab2, tab3, tab4 = st.tabs([T["tabs"]["charts"], T["tabs"]["metrics"], T["tabs"]["math"], T["tabs"]["pedagogy"]])
     with tab1:
         if lang == "en":
             fig = translate_figure_to_en(fig)
@@ -268,13 +280,20 @@ elif "LM" in topic or "پول" in topic:
             </thead>
             <tbody>
                 <tr><td>{"Transactions Demand (kY)" if lang=="en" else "تقاضای معاملاتی (kY)"}</td><td>{ky_val:.1f}</td><td>{"Vertical asymptote at high interest rates" if lang=="en" else "مجانب عمودی در نرخ‌های بهره بسیار بالا"}</td></tr>
-                <tr><td>{"Liquidity Trap Floor" if lang=="en" else "کف نرخ بهره (دام نقدینگی)"}</td><td>{model.r_floor*100:.1f}%</td><td>{"Horizontal asymptote at low rates" if lang=="en" else "مجانب افقی (عدم رغبت به خرید اوراق)"}</td></tr>
+                <tr><td>{"Liquidity Trap Floor" if lang=="en" else "کف نرخ بهره (دام نقدینگی)"}</td><td>{getattr(model, 'r_floor', 0.015)*100:.1f}%</td><td>{"Horizontal asymptote at low rates" if lang=="en" else "مجانب افقی (عدم رغبت به خرید اوراق)"}</td></tr>
                 <tr><td>{"Real Money Supply (M/P)" if lang=="en" else "مانده حقیقی عرضه پول (M/P)"}</td><td>{model.real_money_supply:.1f}</td><td>{"Vertical exogenous policy line" if lang=="en" else "خط کاملاً عمودی سیاست پولی"}</td></tr>
             </tbody>
         </table>
         """, unsafe_allow_html=True)
     with tab3:
         show_money_market_math(model, y_curr, m, p, k, h, r_eq)
+    with tab4:
+        if m_regime == "liquidity_trap":
+            st.info("💡 **دام نقدینگی کینزی:** نرخ بهره به کف حداقلی رسیده و ترجیح نقدینگی بی‌نهایت است. تزریق هر مقدار پول توسط بانک مرکزی جذب مانده راکد شده و نرخ بهره را پایین‌تر نمی‌برد.")
+        elif m_regime == "classical":
+            st.warning("💡 **حالت کلاسیک:** پول صرفاً نقش واسطه مبادله دارد و تقاضای سفته‌بازی صفر است ($h=0$). نرخ بهره در بازار واقعی سرمایه تعیین می‌شود نه در بازار پول.")
+        else:
+            st.success("💡 **تعادل استاندارد:** تقاضای پول تابعی صعودی از درآمد ($Y$) و نزولی از نرخ بهره ($r$) است.")
 
 # ==========================================
 # فصل ۳: تعادل هم‌زمان IS-LM و حالات خاص
@@ -302,7 +321,7 @@ elif "IS-LM" in topic:
     ]
 
     special_case = st.sidebar.selectbox("Special Regimes:" if lang == "en" else "حالات خاص و مکاتب اقتصادی:", cases)
-    regime_mode = "liquidity_trap" if ("Trap" in special_case or "تله" in special_case) else ("classical" if ("Classical" in special_case or "کلاسیک" in special_case) else "standard")
+    regime_mode = "liquidity_trap" if ("Trap" in special_case or "تله" in special_case or "دام" in special_case) else ("classical" if ("Classical" in special_case or "کلاسیک" in special_case) else "standard")
 
     g_val = st.sidebar.slider("G:" if lang == "en" else "مخارج دولت هوکاگه (G):", 40.0, 260.0, st.session_state.islm_g, step=10.0)
     t_val = st.sidebar.slider("t:" if lang == "en" else "نرخ مالیات (t):", 0.05, 0.40, 0.20, step=0.02)
